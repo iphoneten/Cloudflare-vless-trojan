@@ -265,27 +265,59 @@ async function handle\u0076\u006c\u0065\u0073\u0073WebSocket(request) {
         return `[${chosenPrefix}${hex[0]}${hex[1]}:${hex[2]}${hex[3]}]`;
       }
 
-      async function getIPv6ProxyAddress(domain) {
-        try {
-          const dnsQuery = await fetch(`https://1.1.1.1/dns-query?name=${domain}&type=A`, {
-            headers: {
-              'Accept': 'application/dns-json'
-            }
-          });
+      // async function getIPv6ProxyAddress(domain) {
+      //   try {
+      //     const dnsQuery = await fetch(`https://1.1.1.1/dns-query?name=${domain}&type=A`, {
+      //       headers: {
+      //         'Accept': 'application/dns-json'
+      //       }
+      //     });
           
-          const dnsResult = await dnsQuery.json();
-          if (dnsResult.Answer && dnsResult.Answer.length > 0) {
-            const aRecord = dnsResult.Answer.find(record => record.type === 1);
-            if (aRecord) {
-              const ipv4Address = aRecord.data;
-              return convertToNAT64IPv6(ipv4Address);
-            }
-          }
-          throw new Error('无法解析域名的IPv4地址');
-        } catch (err) {
-          throw new Error(`DNS解析失败: ${err.message}`);
-        }
-      }
+      //     const dnsResult = await dnsQuery.json();
+      //     if (dnsResult.Answer && dnsResult.Answer.length > 0) {
+      //       const aRecord = dnsResult.Answer.find(record => record.type === 1);
+      //       if (aRecord) {
+      //         const ipv4Address = aRecord.data;
+      //         return convertToNAT64IPv6(ipv4Address);
+      //       }
+      //     }
+      //     throw new Error('无法解析域名的IPv4地址');
+      //   } catch (err) {
+      //     throw new Error(`DNS解析失败: ${err.message}`);
+      //   }
+      // }
+
+	async function getIPv6ProxyAddress(domain) {
+		const dnsServers = [
+		'https://8.8.8.8/dns-query',
+		'https://1.1.1.1/dns-query'
+		];
+	
+		for (const dnsServer of dnsServers) {
+			try {
+			  const dnsQuery = await fetch(`${dnsServer}?name=${domain}&type=A`, {
+				headers: {
+				  'Accept': 'application/dns-json'
+				}
+			  });
+			  const dnsResult = await dnsQuery.json();
+			  if (dnsResult.Answer && dnsResult.Answer.length > 0) {
+				const aRecord = dnsResult.Answer.find(record => record.type === 1);
+				if (aRecord) {
+				  const ipv4Address = aRecord.data;
+				  return convertToNAT64IPv6(ipv4Address);
+				}
+			  }
+			} catch (err) {
+			  console.error(`DNS查询失败 (${dnsServer}): ${err.message}`);
+			  if (dnsServer === dnsServers[dnsServers.length - 1]) {
+				throw new Error(`所有DNS服务器均无法解析域名: ${err.message}`);
+			  }
+			  continue;
+			}
+		}
+		throw new Error('无法解析域名的IPv4地址');
+	}
 
       async function retry() {
         try {
